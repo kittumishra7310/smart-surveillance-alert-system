@@ -15,4 +15,5 @@ passlib
 loguru
 PyJWT
 Pillow
+mysqlclient
 # Add: torch, torchvision, or tensorflow if using deep learning

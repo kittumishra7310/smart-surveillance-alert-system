@@ -9,7 +9,11 @@ import os
 
 class Config:
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/suspicious_activity")
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "DATABASE_URL",
+        # Example MySQL URI: change user, pass, host, db as needed
+        "mysql://user:pass@localhost:3306/suspicious_activity"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Secret keys (for auth, JWT, etc.)
