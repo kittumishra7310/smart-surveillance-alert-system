@@ -1,73 +1,136 @@
-# Welcome to your Lovable project
 
-## Project info
+# Suspicious Human Activity Detection
 
-**URL**: https://lovable.dev/projects/3d91e8c9-8bab-4603-97ac-c73a781ec746
+## Overview
+A scalable, production-ready system for computer vision-based suspicious activity detection in security/surveillance settings.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 📁 Folder Structure
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/3d91e8c9-8bab-4603-97ac-c73a781ec746) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+project-root/
+│
+├── src/                    # Source code for Streamlit app and backend logic
+│   ├── __init__.py
+│   ├── app.py              # Main Streamlit app entry
+│   ├── detection.py        # Computer vision/ML pipeline
+│   ├── history.py          # Timeline/history features
+│   ├── auth.py             # Role-based access control
+│   ├── alerting.py         # Email/SMS alert logic
+│   ├── camera.py           # Multi-stream camera management
+│   ├── db.py               # Database connection and models
+│   ├── config.py           # Config and settings
+│   └── utils.py            # Helper functions (logging, smoothing, etc)
+│
+├── models/                 # ML models/data & related utils
+│   ├── suspicious_activity_model.pkl
+│   └── ... (any other models)
+│
+├── data/                   # Example datasets, videos for demo
+│   ├── example_video.mp4
+│   └── ...
+│
+├── docker/
+│   ├── Dockerfile          # For Streamlit app
+│   └── docker-compose.yaml # Compose file for app+db
+│
+├── requirements.txt        # Python dependencies
+├── setup.sh                # Quick setup script
+├── README.md               # This documentation
+└── schema.md               # Database schema and ER diagram
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Database Schema
 
-**Use GitHub Codespaces**
+**Tables:**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- **users**: id (PK), username, email, password_hash, role
+- **camera_feeds**: id (PK), name, stream_url, is_active
+- **detections**: id (PK), camera_id (FK), timestamp, frame_path, label, confidence, details
+- **alerts**: id (PK), detection_id (FK), alert_time, alert_type (sms/email), status, recipient
 
-## What technologies are used for this project?
+See [schema.md](./schema.md) for a detailed breakdown.
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## ER Diagram
 
-## How can I deploy this project?
+See **schema.md** for an entity relationship diagram (textual).
 
-Simply open [Lovable](https://lovable.dev/projects/3d91e8c9-8bab-4603-97ac-c73a781ec746) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## Installation
 
-Yes, you can!
+```bash
+git clone https://github.com/SHAURYABA05/Suspicious-Human-Activity-Detection.git
+cd Suspicious-Human-Activity-Detection
+bash setup.sh
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Or, for manual setup:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+# Set up .env with DB credentials as needed
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+---
+
+## Running (Locally)
+
+```bash
+# For Streamlit App
+cd src
+streamlit run app.py
+```
+
+---
+
+## Dockerized Deployment
+
+See [docker/docker-compose.yaml](./docker/docker-compose.yaml) and [docker/Dockerfile](./docker/Dockerfile) for the easiest deployment.
+
+```bash
+docker-compose -f docker/docker-compose.yaml up --build
+```
+
+---
+
+## Key Features
+
+- File upload or camera feed for live detection
+- Annotated outputs with confidence scores
+- Detection timeline/history view
+- Role-based access control
+- Robust detection pipeline (smoothing, fallback logic)
+- Real-time multi-streaming
+- Alerting (SMS/email)
+
+---
+
+## Documentation
+
+- **src/**: All business logic, UI, and backend code.
+- **models/**: Store trained models.
+- **data/**: Demo datasets/videos for testing.
+- **docker/**: Deployment configs.
+- **README.md**: This walkthrough.
+- **schema.md**: Database and ERD.
+
+---
+
+## Logging
+
+All important operations are logged with Python’s built-in logging module (see `src/utils.py`).
+
+---
+
+## Next Steps
+
+Follow the files in the `src/` directory. All functions/classes are commented for clarity.  
+If you need further guidance (API docs, frontend extensions, etc.) check back here or ask your assistant!
+

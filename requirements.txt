@@ -1,0 +1,18 @@
+
+streamlit>=1.28
+opencv-python
+numpy
+pandas
+sqlalchemy
+psycopg2-binary
+scikit-learn
+matplotlib
+seaborn
+python-dotenv
+email-validator
+twilio
+passlib
+loguru
+PyJWT
+Pillow
+# Add: torch, torchvision, or tensorflow if using deep learning
