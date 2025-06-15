@@ -1,4 +1,3 @@
-
 """
 Alerting (Email/SMS/Notifications)
 ----------------------------------
@@ -27,5 +26,39 @@ def alerts_admin_panel():
     Admin UI for viewing and managing all alerts sent.
     """
     import streamlit as st
-    st.write("Alert admin panel stub.")
+    import pandas as pd
 
+    session = db.SessionLocal()
+    logger.info("Admin accessed all-sent-alerts panel.")
+
+    st.write("## Sent Alerts (Admin)")
+    alerts = (
+        session.query(db.Alert)
+        .order_by(db.Alert.alert_time.desc())
+        .limit(200)
+        .all()
+    )
+    data = []
+    for a in alerts:
+        detection = a.detection
+        detection_str = (
+            f"[{detection.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {detection.label} (Cam {detection.camera_id})"
+            if detection is not None else f"Detection {a.detection_id}"
+        )
+        data.append({
+            "Alert Time": a.alert_time.strftime("%Y-%m-%d %H:%M:%S") if a.alert_time else "-",
+            "Type": a.alert_type,
+            "Recipient": a.recipient or "-",
+            "Status": a.status or "-",
+            "Detection": detection_str,
+        })
+
+    if not data:
+        st.info("No alerts sent yet.")
+        session.close()
+        return
+
+    df = pd.DataFrame(data)
+    st.dataframe(df, use_container_width=True)
+
+    session.close()
