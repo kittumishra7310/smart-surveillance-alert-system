@@ -19,6 +19,9 @@ from src import detection, history, auth, alerting, camera, db, utils
 st.set_page_config(page_title="Suspicious Human Activity Detection", layout="wide")
 logger = utils.get_logger("app")
 
+# ---- DB INIT ----
+db.init_db()
+
 # ---- Authentication ----
 user = auth.login_widget()
 if not user:
@@ -55,3 +58,4 @@ else:
 
 # Add logging for user navigation
 logger.info(f"User {user['username']} navigated to {nav}")
+
