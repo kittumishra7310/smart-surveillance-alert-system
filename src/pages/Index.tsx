@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,15 +6,30 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Camera, Play, AlertTriangle } from "lucide-react";
+import { Upload, Play, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import CameraFeed from "@/components/CameraFeed";
+
+interface Detection {
+  id: number;
+  label: string;
+  confidence: number;
+  timestamp: string;
+  location?: string;
+  type?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
 
 const Index = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectionResults, setDetectionResults] = useState<any[]>([]);
+  const [detectionResults, setDetectionResults] = useState<Detection[]>([]);
   const [processedImageUrl, setProcessedImageUrl] = useState<string>("");
   const [progress, setProgress] = useState(0);
+  const [liveDetections, setLiveDetections] = useState<Detection[]>([]);
   const { toast } = useToast();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +107,20 @@ const Index = () => {
     }, 2000);
   };
 
+  const handleLiveDetection = (detections: Detection[]) => {
+    setLiveDetections(detections);
+    
+    // Show toast for suspicious activities
+    const suspiciousCount = detections.filter(d => d.label.includes('Suspicious')).length;
+    if (suspiciousCount > 0) {
+      toast({
+        title: "Suspicious Activity Detected",
+        description: `${suspiciousCount} suspicious activity detected in live feed`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const isImageFile = (file: File) => {
     return file.type.startsWith('image/');
   };
@@ -122,7 +150,7 @@ const Index = () => {
 
           <TabsContent value="detection" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Upload Section */}
+              {/* File Upload Section */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -185,33 +213,46 @@ const Index = () => {
                 </CardContent>
               </Card>
 
-              {/* Camera Section */}
-              <Card>
+              {/* Live Camera Feed Section */}
+              <CameraFeed onDetection={handleLiveDetection} />
+            </div>
+
+            {/* Live Detection Alert */}
+            {liveDetections.length > 0 && (
+              <Card className="border-orange-200 bg-orange-50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Camera className="w-5 h-5" />
-                    Camera Feed
+                  <CardTitle className="flex items-center gap-2 text-orange-800">
+                    <AlertTriangle className="w-5 h-5" />
+                    Live Detection Alert
                   </CardTitle>
-                  <CardDescription>
-                    Connect to live camera streams
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-gray-500">
-                    <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Camera feed integration coming soon</p>
+                  <div className="space-y-2">
+                    {liveDetections.map((detection) => (
+                      <div key={detection.id} className="flex justify-between items-center p-2 bg-white rounded border">
+                        <div>
+                          <Badge variant={detection.label.includes('Suspicious') ? 'destructive' : 'secondary'}>
+                            {detection.label}
+                          </Badge>
+                          <p className="text-xs text-gray-500 mt-1">{detection.timestamp}</p>
+                        </div>
+                        <span className="text-sm font-medium">
+                          {Math.round(detection.confidence * 100)}%
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            )}
 
-            {/* Results Section */}
+            {/* File Detection Results Section */}
             {(detectionResults.length > 0 || processedImageUrl) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5" />
-                    Detection Results
+                    File Detection Results
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
