@@ -39,7 +39,7 @@ if nav == "Live Detection":
     st.write("Upload a file or select a camera stream")
     input_type = st.radio("Input Source", ["File Upload", "Camera Feed"])
     if input_type == "File Upload":
-        video_file = st.file_uploader("Upload video", type=["mp4", "avi"])
+        video_file = st.file_uploader("Upload video or image", type=["mp4", "avi", "jpg", "jpeg", "png", "gif", "bmp"])
         if video_file:
             detection.run_detection(video_file, user)
     else:

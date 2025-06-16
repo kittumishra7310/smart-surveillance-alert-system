@@ -29,52 +29,82 @@ def run_detection(input_source, user, is_stream=False):
 
     # File upload flow
     if input_source is None:
-        st.info("Please upload a video file to begin detection.")
+        st.info("Please upload a video or image file to begin detection.")
         return
 
+    # Check if uploaded file is an image or video
+    file_extension = input_source.name.split('.')[-1].lower()
+    is_image = file_extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp']
+    
     # Save upload to a temp file and process with OpenCV
     import tempfile
-    suffix = '.' + input_source.name.split('.')[-1]
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_vid:
-        temp_vid.write(input_source.read())
-        temp_path = temp_vid.name
+    suffix = '.' + file_extension
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+        temp_file.write(input_source.read())
+        temp_path = temp_file.name
 
-    st.video(temp_path)
-    st.write("Processing frames for detection...")
-
-    video = cv2.VideoCapture(temp_path)
-    frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-    idx = 0
-    progress = st.progress(0, text="Running detection (stub)...")
-    frame_placeholder = st.empty()
-
-    while True:
-        ret, frame = video.read()
-        if not ret:
-            break
-        idx += 1
-
-        # Dummy detection (draw rectangle every 20 frames for demo)
+    if is_image:
+        # Process single image
+        st.image(temp_path, caption="Uploaded Image", use_column_width=True)
+        st.write("Processing image for detection...")
+        
+        # Read image with OpenCV
+        frame = cv2.imread(temp_path)
+        if frame is None:
+            st.error("Could not read the image file.")
+            return
+            
+        # Dummy detection for demo
         detections = []
-        if idx % 20 == 0:
-            h, w, _ = frame.shape
-            detections.append({"box": [int(w*0.1), int(h*0.1), int(w*0.4), int(h*0.5)],
-                               "label": "suspicious", "confidence": 0.92})
-
+        h, w, _ = frame.shape
+        detections.append({"box": [int(w*0.1), int(h*0.1), int(w*0.4), int(h*0.5)],
+                          "label": "suspicious", "confidence": 0.87})
+        
         annotated = annotate_frame(frame, detections)
-
+        
         # Convert to RGB for Streamlit display (OpenCV is BGR)
         annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(annotated, channels="RGB", caption=f"Frame {idx}/{frame_count}", use_column_width=True)
-        progress.progress(min(idx / frame_count, 1.0), text=f"Frame {idx}/{frame_count}")
+        st.image(annotated, caption="Detection Results", use_column_width=True)
+        st.success("Image detection complete (demo - replace with model inference).")
+        
+    else:
+        # Process video file (existing logic)
+        st.video(temp_path)
+        st.write("Processing frames for detection...")
 
-        # For demo, make update visible (limit to first 100 frames for speed)
-        if idx > 100:
-            st.info("Early stopping after 100 frames (demo limit).")
-            break
+        video = cv2.VideoCapture(temp_path)
+        frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        idx = 0
+        progress = st.progress(0, text="Running detection (stub)...")
+        frame_placeholder = st.empty()
 
-    video.release()
-    st.success("Detection complete (demo - replace with model inference).")
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
+            idx += 1
+
+            # Dummy detection (draw rectangle every 20 frames for demo)
+            detections = []
+            if idx % 20 == 0:
+                h, w, _ = frame.shape
+                detections.append({"box": [int(w*0.1), int(h*0.1), int(w*0.4), int(h*0.5)],
+                                   "label": "suspicious", "confidence": 0.92})
+
+            annotated = annotate_frame(frame, detections)
+
+            # Convert to RGB for Streamlit display (OpenCV is BGR)
+            annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+            frame_placeholder.image(annotated, channels="RGB", caption=f"Frame {idx}/{frame_count}", use_column_width=True)
+            progress.progress(min(idx / frame_count, 1.0), text=f"Frame {idx}/{frame_count}")
+
+            # For demo, make update visible (limit to first 100 frames for speed)
+            if idx > 100:
+                st.info("Early stopping after 100 frames (demo limit).")
+                break
+
+        video.release()
+        st.success("Detection complete (demo - replace with model inference).")
 
 def annotate_frame(frame, detections):
     """
