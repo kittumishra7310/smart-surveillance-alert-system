@@ -28,7 +28,11 @@ if not user:
     st.stop()  # Block rest of app if not authenticated
 
 st.sidebar.header("Navigation")
-nav = st.sidebar.radio("", ["Live Detection", "History", "Alerts", "Admin"] if user['role']=="admin" else ["Live Detection", "History"])
+nav = st.sidebar.radio(
+    "Navigation Menu", 
+    ["Live Detection", "History", "Alerts", "Admin"] if user['role']=="admin" else ["Live Detection", "History"],
+    label_visibility="collapsed"
+)
 
 if nav == "Live Detection":
     st.header("Real-time Suspicious Activity Detection")
@@ -58,4 +62,3 @@ else:
 
 # Add logging for user navigation
 logger.info(f"User {user['username']} navigated to {nav}")
-
