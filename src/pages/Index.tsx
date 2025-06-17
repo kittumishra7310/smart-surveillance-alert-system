@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,11 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Play, AlertTriangle, Shield, Activity, Clock } from "lucide-react";
+import { Upload, Play, AlertTriangle, Shield, Activity, Clock, LogOut, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/AuthProvider";
+import LoginForm from "@/components/LoginForm";
 import CameraFeed from "@/components/CameraFeed";
 import DetectionHistory from "@/components/DetectionHistory";
 import SystemSettings from "@/components/SystemSettings";
+import AdminPanel from "@/components/AdminPanel";
 
 interface Detection {
   id: number;
@@ -27,6 +29,7 @@ interface Detection {
 }
 
 const Index = () => {
+  const { user, logout, isAuthenticated } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [detectionResults, setDetectionResults] = useState<Detection[]>([]);
@@ -34,6 +37,10 @@ const Index = () => {
   const [progress, setProgress] = useState(0);
   const [liveDetections, setLiveDetections] = useState<Detection[]>([]);
   const { toast } = useToast();
+
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -61,7 +68,6 @@ const Index = () => {
     setIsProcessing(true);
     setProgress(0);
 
-    // Enhanced processing simulation
     const progressSteps = [
       { step: 10, message: "Initializing AI model..." },
       { step: 25, message: "Preprocessing media..." },
@@ -83,7 +89,6 @@ const Index = () => {
       }
     }
 
-    // Generate more realistic detection results
     const isImage = selectedFile.type.startsWith('image/');
     const detectionCount = isImage ? 2 + Math.floor(Math.random() * 4) : 5 + Math.floor(Math.random() * 8);
     
@@ -112,7 +117,6 @@ const Index = () => {
 
     setDetectionResults(mockDetections);
     
-    // Create enhanced preview
     const url = URL.createObjectURL(selectedFile);
     setProcessedImageUrl(url);
     
@@ -147,16 +151,33 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Enhanced Header */}
+        {/* Enhanced Header with User Info */}
         <div className="text-center mb-8 bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
-              <Shield className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
+                <Shield className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                AI Security System
+              </h1>
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-              AI Security System
-            </h1>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-white/50 rounded-lg px-3 py-2">
+                <User className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium">{user?.username}</span>
+                <Badge variant={user?.role === 'admin' ? 'default' : 'secondary'}>
+                  {user?.role}
+                </Badge>
+              </div>
+              <Button variant="outline" onClick={logout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
+          
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Advanced suspicious activity detection powered by artificial intelligence
           </p>
@@ -177,7 +198,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="detection" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm">
+          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-4' : 'grid-cols-3'} bg-white/80 backdrop-blur-sm`}>
             <TabsTrigger value="detection" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Live Detection
             </TabsTrigger>
@@ -187,6 +208,11 @@ const Index = () => {
             <TabsTrigger value="settings" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Settings
             </TabsTrigger>
+            {user?.role === 'admin' && (
+              <TabsTrigger value="admin" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                Admin Panel
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="detection" className="space-y-6 mt-6">
@@ -369,6 +395,12 @@ const Index = () => {
           <TabsContent value="settings" className="mt-6">
             <SystemSettings />
           </TabsContent>
+
+          {user?.role === 'admin' && (
+            <TabsContent value="admin" className="mt-6">
+              <AdminPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
