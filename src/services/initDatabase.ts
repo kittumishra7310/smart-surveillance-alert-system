@@ -3,90 +3,101 @@ import { supabase } from '@/lib/supabase'
 
 export async function initializeDatabase() {
   try {
-    // Create users table
-    await supabase.sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        role VARCHAR(20) DEFAULT 'viewer' CHECK (role IN ('admin', 'viewer')),
-        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        last_login TIMESTAMP WITH TIME ZONE
-      );
-    `
+    console.log('Initializing database...')
+    
+    // Note: Tables should be created through Supabase dashboard or migrations
+    // This function will just insert sample data and check connections
+    
+    // Check if we can connect to Supabase
+    const { data: testConnection, error: connectionError } = await supabase
+      .from('cameras')
+      .select('count')
+      .limit(1)
+    
+    if (connectionError) {
+      console.log('Database tables may not exist yet. Please create them in Supabase dashboard.')
+      console.error('Connection error:', connectionError)
+      return false
+    }
 
-    // Create cameras table
-    await supabase.sql`
-      CREATE TABLE IF NOT EXISTS cameras (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        location VARCHAR(255) NOT NULL,
-        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-        stream_url TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `
+    // Insert sample cameras if none exist
+    const { data: existingCameras, error: cameraError } = await supabase
+      .from('cameras')
+      .select('id')
+      .limit(1)
 
-    // Create detections table
-    await supabase.sql`
-      CREATE TABLE IF NOT EXISTS detections (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        camera_id UUID REFERENCES cameras(id) ON DELETE CASCADE,
-        detection_type VARCHAR(100) NOT NULL,
-        description TEXT NOT NULL,
-        confidence DECIMAL(3,2) NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
-        severity VARCHAR(20) DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high')),
-        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'resolved', 'investigating')),
-        coordinates JSONB,
-        image_url TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `
+    if (!cameraError && existingCameras && existingCameras.length === 0) {
+      const { error: insertError } = await supabase
+        .from('cameras')
+        .insert([
+          { name: 'Main Entrance', location: 'Building A - Front Door', status: 'active' },
+          { name: 'Parking Lot', location: 'Outdoor Parking Area', status: 'active' },
+          { name: 'Warehouse', location: 'Storage Area B', status: 'active' },
+          { name: 'Office Area', location: 'Floor 2 - Open Office', status: 'active' },
+          { name: 'Loading Dock', location: 'Rear Building Entrance', status: 'maintenance' }
+        ])
 
-    // Create alerts table
-    await supabase.sql`
-      CREATE TABLE IF NOT EXISTS alerts (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        detection_id UUID REFERENCES detections(id) ON DELETE CASCADE,
-        alert_type VARCHAR(100) NOT NULL,
-        message TEXT NOT NULL,
-        acknowledged BOOLEAN DEFAULT FALSE,
-        acknowledged_by UUID REFERENCES users(id),
-        acknowledged_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `
+      if (insertError) {
+        console.error('Error inserting sample cameras:', insertError)
+      } else {
+        console.log('Sample cameras inserted successfully')
+      }
+    }
 
-    // Insert default cameras
-    await supabase.sql`
-      INSERT INTO cameras (name, location, status) VALUES
-      ('Main Entrance', 'Building A - Front Door', 'active'),
-      ('Parking Lot', 'Outdoor Parking Area', 'active'),
-      ('Warehouse', 'Storage Area B', 'active'),
-      ('Office Area', 'Floor 2 - Open Office', 'active'),
-      ('Loading Dock', 'Rear Building Entrance', 'maintenance')
-      ON CONFLICT DO NOTHING;
-    `
+    // Insert sample detections if none exist
+    const { data: existingDetections } = await supabase
+      .from('detections')
+      .select('id')
+      .limit(1)
 
-    // Create RPC function for hourly stats (if possible)
-    await supabase.sql`
-      CREATE OR REPLACE FUNCTION get_hourly_detection_stats()
-      RETURNS TABLE(hour INTEGER, detection_count BIGINT) 
-      LANGUAGE SQL
-      AS $$
-        SELECT 
-          EXTRACT(hour FROM created_at)::INTEGER as hour,
-          COUNT(*) as detection_count
-        FROM detections 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY EXTRACT(hour FROM created_at)
-        ORDER BY hour;
-      $$;
-    `
+    if (existingDetections && existingDetections.length === 0) {
+      // Get camera IDs first
+      const { data: cameras } = await supabase
+        .from('cameras')
+        .select('id')
+        .limit(3)
 
-    console.log('Database initialized successfully')
+      if (cameras && cameras.length > 0) {
+        const sampleDetections = [
+          {
+            camera_id: cameras[0].id,
+            detection_type: 'Person Detection',
+            description: 'Unauthorized person detected in restricted area',
+            confidence: 0.95,
+            severity: 'high',
+            status: 'active'
+          },
+          {
+            camera_id: cameras[1].id,
+            detection_type: 'Motion Detection',
+            description: 'Unusual movement detected after hours',
+            confidence: 0.87,
+            severity: 'medium',
+            status: 'investigating'
+          },
+          {
+            camera_id: cameras[2].id,
+            detection_type: 'Object Detection',
+            description: 'Unattended bag detected',
+            confidence: 0.92,
+            severity: 'high',
+            status: 'resolved'
+          }
+        ]
+
+        const { error: detectionsError } = await supabase
+          .from('detections')
+          .insert(sampleDetections)
+
+        if (detectionsError) {
+          console.error('Error inserting sample detections:', detectionsError)
+        } else {
+          console.log('Sample detections inserted successfully')
+        }
+      }
+    }
+
+    console.log('Database initialization completed successfully')
     return true
   } catch (error) {
     console.error('Error initializing database:', error)
