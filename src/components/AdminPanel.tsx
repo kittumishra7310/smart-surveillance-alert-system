@@ -1,12 +1,10 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Users, Camera, Bell, BarChart } from "lucide-react";
+import { Shield, Users, Camera, Bell } from "lucide-react";
 import UserManagement from './UserManagement';
 import CameraManagement from './CameraManagement';
 import AlertManagement from './AlertManagement';
-import AnalyticsDashboard from './AnalyticsDashboard';
 
 const AdminPanel: React.FC = () => {
   return (
@@ -21,16 +19,12 @@ const AdminPanel: React.FC = () => {
           </h1>
         </div>
         <p className="text-lg text-gray-600">
-          Manage users, cameras, alerts, and system analytics
+          Manage users, cameras, and system alerts
         </p>
       </div>
 
-      <Tabs defaultValue="analytics" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm">
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-            <BarChart className="w-4 h-4 mr-2" />
-            Analytics
-          </TabsTrigger>
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm">
           <TabsTrigger value="users" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
             <Users className="w-4 h-4 mr-2" />
             Users
@@ -44,10 +38,6 @@ const AdminPanel: React.FC = () => {
             Alerts
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="analytics" className="mt-6">
-          <AnalyticsDashboard />
-        </TabsContent>
 
         <TabsContent value="users" className="mt-6">
           <UserManagement />

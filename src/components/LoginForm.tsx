@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, User, Lock, AlertCircle } from "lucide-react";
+import { Shield, User, Lock, AlertCircle, Mail, UserPlus } from "lucide-react";
 import { useAuth } from './AuthProvider';
 
 const LoginForm: React.FC = () => {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -20,13 +23,59 @@ const LoginForm: React.FC = () => {
     setLoading(true);
     setError('');
 
-    const success = await login(username, password);
-    
-    if (!success) {
-      setError('Invalid username or password');
+    if (isSignUp) {
+      // Sign up validation
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        setLoading(false);
+        return;
+      }
+      
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        setLoading(false);
+        return;
+      }
+
+      if (!email.includes('@')) {
+        setError('Please enter a valid email address');
+        setLoading(false);
+        return;
+      }
+
+      // Simulate sign up process
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // In a real app, this would create a new user account
+      // For now, we'll just switch to login mode
+      setIsSignUp(false);
+      setError('');
+      setPassword('');
+      setConfirmPassword('');
+      alert('Account created successfully! Please sign in with your new credentials.');
+    } else {
+      // Sign in process
+      const success = await login(username, password);
+      
+      if (!success) {
+        setError('Invalid username or password. Please check your credentials and try again.');
+      }
     }
     
     setLoading(false);
+  };
+
+  const resetForm = () => {
+    setUsername('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setError('');
+  };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    resetForm();
   };
 
   return (
@@ -39,7 +88,9 @@ const LoginForm: React.FC = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">AI Security System</CardTitle>
-          <CardDescription>Sign in to access the security dashboard</CardDescription>
+          <CardDescription>
+            {isSignUp ? 'Create your security account' : 'Sign in to access the security dashboard'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,6 +109,24 @@ const LoginForm: React.FC = () => {
                 />
               </div>
             </div>
+
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+            )}
             
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -75,6 +144,24 @@ const LoginForm: React.FC = () => {
               </div>
             </div>
 
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -87,17 +174,46 @@ const LoginForm: React.FC = () => {
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600"
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? (
+                <>
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                  {isSignUp ? 'Creating Account...' : 'Signing in...'}
+                </>
+              ) : (
+                <>
+                  {isSignUp ? (
+                    <UserPlus className="w-4 h-4 mr-2" />
+                  ) : (
+                    <User className="w-4 h-4 mr-2" />
+                  )}
+                  {isSignUp ? 'Create Account' : 'Sign In'}
+                </>
+              )}
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
-            <p className="text-sm font-medium text-blue-900 mb-2">Demo Credentials:</p>
-            <div className="space-y-1 text-xs text-blue-700">
-              <p><strong>Admin:</strong> username: admin, password: admin123</p>
-              <p><strong>Viewer:</strong> username: viewer, password: viewer123</p>
-            </div>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+            </p>
+            <Button
+              variant="link"
+              onClick={toggleMode}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              {isSignUp ? 'Sign in here' : 'Create new account'}
+            </Button>
           </div>
+
+          {!isSignUp && (
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
+              <p className="text-sm font-medium text-blue-900 mb-2">Demo Credentials (for testing):</p>
+              <div className="space-y-1 text-xs text-blue-700">
+                <p><strong>Admin:</strong> username: admin, password: admin123</p>
+                <p><strong>Viewer:</strong> username: viewer, password: viewer123</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
