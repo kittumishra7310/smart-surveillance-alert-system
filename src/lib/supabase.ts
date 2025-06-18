@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 // TODO: Replace these with your actual Supabase credentials from the dashboard
 // Go to: https://supabase.com/dashboard → Your Project → Settings → API
 const supabaseUrl = 'https://isnlnbinfzxeneyhgbdi.supabase.co'
-const supabaseAnonKey = 'YOUR_ACTUAL_ANON_KEY_HERE' // Replace with the correct anon/public key from your dashboard
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzbmxuYmluZnp4ZW5leWhnYmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMjAzNTIsImV4cCI6MjA2NTc5NjM1Mn0.JRXwtJMI833rNlz8U7EJ_-iFWpsHFbPfyCG61CSNh4I' // Replace with the correct anon/public key from your dashboard
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
