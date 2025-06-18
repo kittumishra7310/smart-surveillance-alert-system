@@ -16,12 +16,14 @@ const LoginForm: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [success, setSuccess] = useState('');
+  const { login, register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
 
     if (isSignUp) {
       // Sign up validation
@@ -43,22 +45,30 @@ const LoginForm: React.FC = () => {
         return;
       }
 
-      // Simulate sign up process
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!username.trim()) {
+        setError('Please enter a username');
+        setLoading(false);
+        return;
+      }
+
+      // Register user
+      const success = await register(username, email, password);
       
-      // In a real app, this would create a new user account
-      // For now, we'll just switch to login mode
-      setIsSignUp(false);
-      setError('');
-      setPassword('');
-      setConfirmPassword('');
-      alert('Account created successfully! Please sign in with your new credentials.');
+      if (success) {
+        setSuccess('Account created successfully! Please check your email to verify your account, then sign in.');
+        setIsSignUp(false);
+        setPassword('');
+        setConfirmPassword('');
+        setUsername('');
+      } else {
+        setError('Registration failed. Please try again or check if the email is already registered.');
+      }
     } else {
       // Sign in process
-      const success = await login(username, password);
+      const success = await login(email, password);
       
       if (!success) {
-        setError('Invalid username or password. Please check your credentials and try again.');
+        setError('Invalid email or password. Please check your credentials and try again.');
       }
     }
     
@@ -71,6 +81,7 @@ const LoginForm: React.FC = () => {
     setPassword('');
     setConfirmPassword('');
     setError('');
+    setSuccess('');
   };
 
   const toggleMode = () => {
@@ -94,39 +105,39 @@ const LoginForm: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-
             {isSignUp && (
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="pl-10"
                     required
                   />
                 </div>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
             
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -169,6 +180,13 @@ const LoginForm: React.FC = () => {
               </Alert>
             )}
 
+            {success && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
             <Button 
               type="submit" 
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600"
@@ -205,15 +223,14 @@ const LoginForm: React.FC = () => {
             </Button>
           </div>
 
-          {!isSignUp && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
-              <p className="text-sm font-medium text-blue-900 mb-2">Demo Credentials (for testing):</p>
-              <div className="space-y-1 text-xs text-blue-700">
-                <p><strong>Admin:</strong> username: admin, password: admin123</p>
-                <p><strong>Viewer:</strong> username: viewer, password: viewer123</p>
-              </div>
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
+            <p className="text-sm font-medium text-blue-900 mb-2">Security Features:</p>
+            <div className="space-y-1 text-xs text-blue-700">
+              <p>✓ Secure authentication with Supabase</p>
+              <p>✓ Real-time database connectivity</p>
+              <p>✓ Role-based access control</p>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>

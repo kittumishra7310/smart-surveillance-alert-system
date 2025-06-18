@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Filter, Download, AlertTriangle, Activity, Camera, Clock, TrendingUp, BarChart3, PieChart } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart as RechartsPieChart, Cell, AreaChart, Area, Pie } from 'recharts';
+import { DatabaseService } from '@/services/databaseService';
+import { useToast } from "@/hooks/use-toast";
 
 // Mock data for analytics
 const detectionData = [
@@ -99,19 +101,131 @@ const DetectionHistory: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [detections, setDetections] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const filteredHistory = mockHistory.filter(item => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load recent detections
+      const detectionsData = await DatabaseService.getDetections(50);
+      setDetections(detectionsData);
+
+      // Load analytics data
+      const statsData = await DatabaseService.getDetectionStats(7);
+      const hourlyData = await DatabaseService.getHourlyStats();
+
+      // Process analytics data
+      const processedAnalytics = processAnalyticsData(statsData, hourlyData);
+      setAnalytics(processedAnalytics);
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error Loading Data",
+        description: "Using demo data instead",
+        variant: "destructive",
+      });
+      
+      // Fallback to mock data
+      setDetections(mockHistory);
+      setAnalytics({
+        detectionTrends: detectionData,
+        hourlyActivity: hourlyData,
+        alertTypes: alertTypeData
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processAnalyticsData = (stats: any[], hourly: any[]) => {
+    // Process stats into charts format
+    const dailyStats = stats.reduce((acc: any, detection) => {
+      const date = new Date(detection.created_at).toISOString().split('T')[0];
+      if (!acc[date]) {
+        acc[date] = { date, suspicious: 0, normal: 0, total: 0 };
+      }
+      
+      const isSuspicious = ['high', 'medium'].includes(detection.severity);
+      if (isSuspicious) {
+        acc[date].suspicious++;
+      } else {
+        acc[date].normal++;
+      }
+      acc[date].total++;
+      
+      return acc;
+    }, {});
+
+    const detectionTrends = Object.values(dailyStats).slice(-7);
+
+    // Process hourly data
+    const hourlyActivity = Array.from({ length: 24 }, (_, hour) => {
+      const hourData = hourly.find((h: any) => h.hour === hour);
+      return {
+        hour: hour.toString().padStart(2, '0') + ':00',
+        detections: hourData?.detection_count || 0
+      };
+    });
+
+    // Process alert types
+    const typeStats = stats.reduce((acc: any, detection) => {
+      const type = detection.detection_type;
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const alertTypes = Object.entries(typeStats).map(([name, value], index) => ({
+      name,
+      value: value as number,
+      color: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'][index % 5]
+    }));
+
+    return {
+      detectionTrends,
+      hourlyActivity,
+      alertTypes
+    };
+  };
+
+  const filteredHistory = detections.filter(item => {
+    const isSuspicious = ['high', 'medium'].includes(item.severity);
     const matchesFilter = selectedFilter === 'all' || 
-      (selectedFilter === 'suspicious' && item.type === 'Suspicious Activity') ||
-      (selectedFilter === 'normal' && item.type === 'Normal Activity') ||
-      (selectedFilter === 'alerts' && item.type === 'Alert');
+      (selectedFilter === 'suspicious' && isSuspicious) ||
+      (selectedFilter === 'normal' && !isSuspicious) ||
+      (selectedFilter === 'alerts' && item.status === 'active');
     
     const matchesSearch = searchTerm === '' || 
       item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.location.toLowerCase().includes(searchTerm.toLowerCase());
+      (item.cameras?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesFilter && matchesSearch;
   });
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+          <span className="ml-3">Loading detection history...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const currentAnalytics = analytics || {
+    detectionTrends: detectionData,
+    hourlyActivity: hourlyData,
+    alertTypes: alertTypeData
+  };
 
   return (
     <div className="space-y-6">
@@ -135,8 +249,8 @@ const DetectionHistory: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Detections</p>
-                    <p className="text-2xl font-bold text-gray-900">1,247</p>
-                    <p className="text-xs text-green-600">+12% from last week</p>
+                    <p className="text-2xl font-bold text-gray-900">{detections.length}</p>
+                    <p className="text-xs text-green-600">Real-time data</p>
                   </div>
                   <Activity className="w-8 h-8 text-blue-600" />
                 </div>
@@ -147,9 +261,11 @@ const DetectionHistory: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Suspicious Events</p>
-                    <p className="text-2xl font-bold text-red-600">47</p>
-                    <p className="text-xs text-red-600">+3% from last week</p>
+                    <p className="text-sm font-medium text-gray-600">High Priority</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {detections.filter(d => d.severity === 'high').length}
+                    </p>
+                    <p className="text-xs text-red-600">Requires attention</p>
                   </div>
                   <AlertTriangle className="w-8 h-8 text-red-600" />
                 </div>
@@ -160,11 +276,13 @@ const DetectionHistory: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Active Cameras</p>
-                    <p className="text-2xl font-bold text-green-600">12/12</p>
-                    <p className="text-xs text-green-600">All operational</p>
+                    <p className="text-sm font-medium text-gray-600">Active Alerts</p>
+                    <p className="text-2xl font-bold text-orange-600">
+                      {detections.filter(d => d.status === 'active').length}
+                    </p>
+                    <p className="text-xs text-orange-600">Unresolved</p>
                   </div>
-                  <Camera className="w-8 h-8 text-green-600" />
+                  <Camera className="w-8 h-8 text-orange-600" />
                 </div>
               </CardContent>
             </Card>
@@ -174,8 +292,13 @@ const DetectionHistory: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Avg Confidence</p>
-                    <p className="text-2xl font-bold text-purple-600">87.3%</p>
-                    <p className="text-xs text-purple-600">+2.1% accuracy</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {detections.length > 0 
+                        ? `${(detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length * 100).toFixed(1)}%`
+                        : '0%'
+                      }
+                    </p>
+                    <p className="text-xs text-purple-600">Detection accuracy</p>
                   </div>
                   <TrendingUp className="w-8 h-8 text-purple-600" />
                 </div>
@@ -193,7 +316,7 @@ const DetectionHistory: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={detectionData}>
+                  <AreaChart data={currentAnalytics.detectionTrends}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -209,11 +332,11 @@ const DetectionHistory: React.FC = () => {
             <Card className="bg-white/80 backdrop-blur-sm border-white/50">
               <CardHeader>
                 <CardTitle>Hourly Activity Pattern</CardTitle>
-                <CardDescription>Average detections by hour of day</CardDescription>
+                <CardDescription>Real-time detections by hour of day</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={hourlyData}>
+                  <BarChart data={currentAnalytics.hourlyActivity}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="hour" />
                     <YAxis />
@@ -227,22 +350,22 @@ const DetectionHistory: React.FC = () => {
             {/* Alert Types Distribution */}
             <Card className="bg-white/80 backdrop-blur-sm border-white/50">
               <CardHeader>
-                <CardTitle>Alert Types Distribution</CardTitle>
-                <CardDescription>Breakdown of different suspicious activities</CardDescription>
+                <CardTitle>Detection Types Distribution</CardTitle>
+                <CardDescription>Breakdown of different detection categories</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPieChart>
                     <Pie
                       dataKey="value"
-                      data={alertTypeData}
+                      data={currentAnalytics.alertTypes}
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
                       fill="#8884d8"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {alertTypeData.map((entry, index) => (
+                      {currentAnalytics.alertTypes.map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -255,12 +378,12 @@ const DetectionHistory: React.FC = () => {
             {/* Weekly Comparison */}
             <Card className="bg-white/80 backdrop-blur-sm border-white/50">
               <CardHeader>
-                <CardTitle>Weekly Comparison</CardTitle>
-                <CardDescription>Current vs previous week performance</CardDescription>
+                <CardTitle>Detection Confidence Trends</CardTitle>
+                <CardDescription>Average confidence levels over time</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={detectionData}>
+                  <LineChart data={currentAnalytics.detectionTrends}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -302,9 +425,9 @@ const DetectionHistory: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="suspicious">Suspicious Only</SelectItem>
-                      <SelectItem value="normal">Normal Only</SelectItem>
-                      <SelectItem value="alerts">Alerts Only</SelectItem>
+                      <SelectItem value="suspicious">High Priority</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="alerts">Active Alerts</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -320,9 +443,9 @@ const DetectionHistory: React.FC = () => {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Actions</label>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={loadData}>
                     <Download className="w-4 h-4 mr-2" />
-                    Export Data
+                    Refresh Data
                   </Button>
                 </div>
               </div>
@@ -332,56 +455,64 @@ const DetectionHistory: React.FC = () => {
           {/* History List */}
           <Card className="bg-white/80 backdrop-blur-sm border-white/50">
             <CardHeader>
-              <CardTitle>Detection History</CardTitle>
-              <CardDescription>Recent security events and detections</CardDescription>
+              <CardTitle>Detection History ({filteredHistory.length} items)</CardTitle>
+              <CardDescription>Real-time security events and detections from database</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {filteredHistory.map((item) => (
-                  <div key={item.id} className="p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <Badge 
-                          variant={
-                            item.type === 'Suspicious Activity' ? 'destructive' : 
-                            item.type === 'Alert' ? 'default' : 'secondary'
-                          }
-                        >
-                          {item.type}
-                        </Badge>
-                        <Badge 
-                          variant="outline"
-                          className={
-                            item.severity === 'High' ? 'border-red-500 text-red-500' :
-                            item.severity === 'Medium' ? 'border-yellow-500 text-yellow-500' :
-                            'border-green-500 text-green-500'
-                          }
-                        >
-                          {item.severity}
-                        </Badge>
-                        <Badge variant="outline">{item.status}</Badge>
-                      </div>
-                      <span className="text-sm text-gray-500">{item.timestamp}</span>
-                    </div>
-                    
-                    <h4 className="font-medium text-gray-900 mb-2">{item.description}</h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Camera className="w-4 h-4" />
-                        <span>{item.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4" />
-                        <span>Confidence: {(item.confidence * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        <span>ID: #{item.id.toString().padStart(4, '0')}</span>
-                      </div>
-                    </div>
+                {filteredHistory.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No detections found matching your filters.
                   </div>
-                ))}
+                ) : (
+                  filteredHistory.map((item) => (
+                    <div key={item.id} className="p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          <Badge 
+                            variant={
+                              item.severity === 'high' ? 'destructive' : 
+                              item.severity === 'medium' ? 'default' : 'secondary'
+                            }
+                          >
+                            {item.detection_type}
+                          </Badge>
+                          <Badge 
+                            variant="outline"
+                            className={
+                              item.severity === 'high' ? 'border-red-500 text-red-500' :
+                              item.severity === 'medium' ? 'border-yellow-500 text-yellow-500' :
+                              'border-green-500 text-green-500'
+                            }
+                          >
+                            {item.severity}
+                          </Badge>
+                          <Badge variant="outline">{item.status}</Badge>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {new Date(item.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      
+                      <h4 className="font-medium text-gray-900 mb-2">{item.description}</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Camera className="w-4 h-4" />
+                          <span>{item.cameras?.name || 'Unknown Camera'} - {item.cameras?.location || 'Unknown Location'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" />
+                          <span>Confidence: {(item.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>ID: #{item.id.slice(-8)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

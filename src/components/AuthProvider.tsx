@@ -1,20 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
 
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  role: 'admin' | 'viewer';
-  createdAt: string;
-  lastLogin: string;
-}
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { DatabaseService, type User } from '@/services/databaseService';
+import { initializeDatabase } from '@/services/initDatabase';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   register: (username: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -27,102 +23,116 @@ export const useAuth = () => {
   return context;
 };
 
-const mockUsers: User[] = [
-  {
-    id: '1',
-    username: 'admin',
-    email: 'admin@security.com',
-    role: 'admin',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-15 14:30:00'
-  },
-  {
-    id: '2',
-    username: 'viewer',
-    email: 'viewer@security.com',
-    role: 'viewer',
-    createdAt: '2024-01-05',
-    lastLogin: '2024-01-15 13:45:00'
-  }
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<User[]>(mockUsers);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    const savedUsers = localStorage.getItem('registeredUsers');
-    
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    if (savedUsers) {
-      setRegisteredUsers(JSON.parse(savedUsers));
-    }
+    // Initialize database on app start
+    initializeDatabase();
+
+    // Check if user is already logged in
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userData = await DatabaseService.getUserByEmail(session.user.email!);
+          if (userData) {
+            setUser(userData);
+            await DatabaseService.updateUserLastLogin(userData.id);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const userData = await DatabaseService.getUserByEmail(session.user.email!);
+        if (userData) {
+          setUser(userData);
+          await DatabaseService.updateUserLastLogin(userData.id);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    // Check registered users first
-    const foundUser = registeredUsers.find(u => u.username === username);
-    
-    if (foundUser) {
-      // In a real app, you'd verify the password hash
-      // For demo purposes, we'll accept any password for registered users
-      // except for the original demo accounts which still need specific passwords
-      const isValidPassword = (foundUser.username === 'admin' && password === 'admin123') ||
-                             (foundUser.username === 'viewer' && password === 'viewer123') ||
-                             (foundUser.username !== 'admin' && foundUser.username !== 'viewer');
-      
-      if (isValidPassword) {
-        const updatedUser = { ...foundUser, lastLogin: new Date().toLocaleString() };
-        setUser(updatedUser);
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        
-        // Update the user in the registered users list
-        const updatedUsers = registeredUsers.map(u => 
-          u.id === foundUser.id ? updatedUser : u
-        );
-        setRegisteredUsers(updatedUsers);
-        localStorage.setItem('registeredUsers', JSON.stringify(updatedUsers));
-        
-        return true;
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        const userData = await DatabaseService.getUserByEmail(email);
+        if (userData) {
+          setUser(userData);
+          await DatabaseService.updateUserLastLogin(userData.id);
+          return true;
+        }
       }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const register = async (username: string, email: string, password: string): Promise<boolean> => {
-    // Check if username or email already exists
-    const existingUser = registeredUsers.find(u => 
-      u.username === username || u.email === email
-    );
-    
-    if (existingUser) {
-      return false; // User already exists
+    try {
+      // Check if user already exists in our database
+      const existingUser = await DatabaseService.getUserByEmail(email);
+      if (existingUser) {
+        throw new Error('User already exists');
+      }
+
+      // Create auth user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Create user record in our database
+        const userData = await DatabaseService.createUser({
+          username,
+          email,
+          role: 'viewer'
+        });
+
+        console.log('User registered successfully:', userData);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Registration error:', error);
+      return false;
     }
-    
-    // Create new user
-    const newUser: User = {
-      id: Date.now().toString(),
-      username,
-      email,
-      role: 'viewer', // Default role for new registrations
-      createdAt: new Date().toLocaleDateString(),
-      lastLogin: 'Never'
-    };
-    
-    const updatedUsers = [...registeredUsers, newUser];
-    setRegisteredUsers(updatedUsers);
-    localStorage.setItem('registeredUsers', JSON.stringify(updatedUsers));
-    
-    return true;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('currentUser');
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
@@ -131,7 +141,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       register,
       logout,
-      isAuthenticated: !!user
+      isAuthenticated: !!user,
+      loading
     }}>
       {children}
     </AuthContext.Provider>
