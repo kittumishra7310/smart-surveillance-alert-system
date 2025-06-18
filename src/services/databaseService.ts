@@ -1,4 +1,3 @@
-
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/lib/supabase'
 
@@ -11,25 +10,41 @@ type Alert = Tables['alerts']['Row']
 export class DatabaseService {
   // User operations
   static async createUser(userData: Tables['users']['Insert']) {
-    const { data, error } = await supabase
-      .from('users')
-      .insert(userData)
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert(userData)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Error creating user:', error)
+        throw error
+      }
+      return data
+    } catch (error) {
+      console.error('Database service createUser error:', error)
+      throw error
+    }
   }
 
   static async getUserByEmail(email: string) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single()
-    
-    if (error && error.code !== 'PGRST116') throw error
-    return data
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error getting user by email:', error)
+        throw error
+      }
+      return data
+    } catch (error) {
+      console.error('Database service getUserByEmail error:', error)
+      throw error
+    }
   }
 
   static async updateUserLastLogin(userId: string) {

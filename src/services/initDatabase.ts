@@ -5,28 +5,33 @@ export async function initializeDatabase() {
   try {
     console.log('Initializing database...')
     
-    // Note: Tables should be created through Supabase dashboard or migrations
-    // This function will just insert sample data and check connections
-    
-    // Check if we can connect to Supabase
+    // Check if we can connect to Supabase and if tables exist
     const { data: testConnection, error: connectionError } = await supabase
       .from('cameras')
       .select('count')
       .limit(1)
     
     if (connectionError) {
-      console.log('Database tables may not exist yet. Please create them in Supabase dashboard.')
+      console.log('Database tables may not exist or RLS policies prevent access.')
       console.error('Connection error:', connectionError)
+      
+      // Check if it's an RLS error
+      if (connectionError.code === '42501') {
+        console.log('Row Level Security is blocking access. Please configure RLS policies in Supabase dashboard.')
+      }
+      
       return false
     }
 
-    // Insert sample cameras if none exist
+    // Insert sample cameras if none exist and we have access
     const { data: existingCameras, error: cameraError } = await supabase
       .from('cameras')
       .select('id')
       .limit(1)
 
     if (!cameraError && existingCameras && existingCameras.length === 0) {
+      console.log('No cameras found, attempting to insert sample data...')
+      
       const { error: insertError } = await supabase
         .from('cameras')
         .insert([
@@ -38,66 +43,17 @@ export async function initializeDatabase() {
         ])
 
       if (insertError) {
-        console.error('Error inserting sample cameras:', insertError)
+        if (insertError.code === '42501') {
+          console.log('RLS policy prevents inserting sample cameras. This is normal if RLS is enabled.')
+        } else {
+          console.error('Error inserting sample cameras:', insertError)
+        }
       } else {
         console.log('Sample cameras inserted successfully')
       }
     }
 
-    // Insert sample detections if none exist
-    const { data: existingDetections } = await supabase
-      .from('detections')
-      .select('id')
-      .limit(1)
-
-    if (existingDetections && existingDetections.length === 0) {
-      // Get camera IDs first
-      const { data: cameras } = await supabase
-        .from('cameras')
-        .select('id')
-        .limit(3)
-
-      if (cameras && cameras.length > 0) {
-        const sampleDetections = [
-          {
-            camera_id: cameras[0].id,
-            detection_type: 'Person Detection',
-            description: 'Unauthorized person detected in restricted area',
-            confidence: 0.95,
-            severity: 'high',
-            status: 'active'
-          },
-          {
-            camera_id: cameras[1].id,
-            detection_type: 'Motion Detection',
-            description: 'Unusual movement detected after hours',
-            confidence: 0.87,
-            severity: 'medium',
-            status: 'investigating'
-          },
-          {
-            camera_id: cameras[2].id,
-            detection_type: 'Object Detection',
-            description: 'Unattended bag detected',
-            confidence: 0.92,
-            severity: 'high',
-            status: 'resolved'
-          }
-        ]
-
-        const { error: detectionsError } = await supabase
-          .from('detections')
-          .insert(sampleDetections)
-
-        if (detectionsError) {
-          console.error('Error inserting sample detections:', detectionsError)
-        } else {
-          console.log('Sample detections inserted successfully')
-        }
-      }
-    }
-
-    console.log('Database initialization completed successfully')
+    console.log('Database initialization completed')
     return true
   } catch (error) {
     console.error('Error initializing database:', error)
