@@ -118,10 +118,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (authData.user) {
         console.log('Auth user created, now creating database record...');
         
-        // Try to create user record in our database using the auth user's ID
+        // Create user record in our database (without specifying id)
         try {
           const userData = await DatabaseService.createUser({
-            id: authData.user.id, // Use the auth user's ID
             username,
             email,
             role: 'viewer'
@@ -134,8 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // If database creation fails due to RLS, we should still consider registration successful
           // since the auth user was created. The user can sign in and we'll handle the database record later
-          if (dbError.code === '42501') {
-            console.log('RLS policy prevented user creation, but auth user exists');
+          if (dbError.code === '42501' || dbError.message?.includes('RLS') || dbError.message?.includes('policy')) {
+            console.log('RLS policy prevented user creation, but auth user exists. Registration successful.');
             return true;
           }
           throw dbError;
