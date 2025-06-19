@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, User, Lock, AlertCircle, Mail, UserPlus } from "lucide-react";
+import { Shield, User, Lock, AlertCircle, Mail, UserPlus, CheckCircle } from "lucide-react";
 import { useAuth } from './AuthProvider';
 
 const LoginForm: React.FC = () => {
@@ -55,20 +55,20 @@ const LoginForm: React.FC = () => {
       const success = await register(username, email, password);
       
       if (success) {
-        setSuccess('Account created successfully! Please check your email to verify your account, then sign in.');
+        setSuccess('Registration successful! Please check your email and click the confirmation link to verify your account. After confirmation, you can sign in.');
         setIsSignUp(false);
         setPassword('');
         setConfirmPassword('');
         setUsername('');
       } else {
-        setError('Registration failed. Please try again or check if the email is already registered.');
+        setError('Registration failed. This email may already be registered or there was a server error.');
       }
     } else {
       // Sign in process
       const success = await login(email, password);
       
       if (!success) {
-        setError('Invalid email or password. Please check your credentials and try again.');
+        setError('Sign in failed. Please check your credentials and make sure your email is confirmed. If you just registered, check your email for a confirmation link first.');
       }
     }
     
@@ -182,7 +182,7 @@ const LoginForm: React.FC = () => {
 
             {success && (
               <Alert>
-                <AlertCircle className="h-4 w-4" />
+                <CheckCircle className="h-4 w-4" />
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
@@ -224,11 +224,11 @@ const LoginForm: React.FC = () => {
           </div>
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
-            <p className="text-sm font-medium text-blue-900 mb-2">Security Features:</p>
+            <p className="text-sm font-medium text-blue-900 mb-2">Important Notes:</p>
             <div className="space-y-1 text-xs text-blue-700">
-              <p>✓ Secure authentication with Supabase</p>
-              <p>✓ Real-time database connectivity</p>
-              <p>✓ Role-based access control</p>
+              <p>✓ After registration, check your email for confirmation</p>
+              <p>✓ You must confirm your email before signing in</p>
+              <p>✓ Check spam folder if confirmation email is missing</p>
             </div>
           </div>
         </CardContent>

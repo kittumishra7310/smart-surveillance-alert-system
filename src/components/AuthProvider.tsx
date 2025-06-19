@@ -36,10 +36,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const userData = await DatabaseService.getUserByEmail(session.user.email!);
+          // Try to get user from database, create if doesn't exist
+          let userData = await DatabaseService.getUserByEmail(session.user.email!);
+          if (!userData && session.user.user_metadata?.username) {
+            // Create user record if it doesn't exist but auth user does
+            try {
+              userData = await DatabaseService.createUser({
+                username: session.user.user_metadata.username,
+                email: session.user.email!,
+                role: 'viewer'
+              });
+            } catch (error) {
+              console.log('Could not create user record, but auth user exists');
+              // Create a temporary user object for the session
+              userData = {
+                id: session.user.id,
+                username: session.user.user_metadata?.username || 'User',
+                email: session.user.email!,
+                role: 'viewer' as const,
+                created_at: new Date().toISOString(),
+                last_login: null,
+                status: 'active' as const
+              };
+            }
+          }
+          
           if (userData) {
             setUser(userData);
-            await DatabaseService.updateUserLastLogin(userData.id);
+            if (userData.id) {
+              await DatabaseService.updateUserLastLogin(userData.id);
+            }
           }
         }
       } catch (error) {
@@ -53,11 +79,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        const userData = await DatabaseService.getUserByEmail(session.user.email!);
+        // Try to get user from database, create if doesn't exist
+        let userData = await DatabaseService.getUserByEmail(session.user.email!);
+        if (!userData && session.user.user_metadata?.username) {
+          // Create user record if it doesn't exist but auth user does
+          try {
+            userData = await DatabaseService.createUser({
+              username: session.user.user_metadata.username,
+              email: session.user.email!,
+              role: 'viewer'
+            });
+          } catch (error) {
+            console.log('Could not create user record, but auth user exists');
+            // Create a temporary user object for the session
+            userData = {
+              id: session.user.id,
+              username: session.user.user_metadata?.username || 'User',
+              email: session.user.email!,
+              role: 'viewer' as const,
+              created_at: new Date().toISOString(),
+              last_login: null,
+              status: 'active' as const
+            };
+          }
+        }
+        
         if (userData) {
           setUser(userData);
-          await DatabaseService.updateUserLastLogin(userData.id);
+          if (userData.id) {
+            await DatabaseService.updateUserLastLogin(userData.id);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -75,15 +129,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Login error:', error);
+        return false;
+      }
 
       if (data.user) {
-        const userData = await DatabaseService.getUserByEmail(email);
-        if (userData) {
-          setUser(userData);
-          await DatabaseService.updateUserLastLogin(userData.id);
-          return true;
+        // Try to get user from database, create if doesn't exist
+        let userData = await DatabaseService.getUserByEmail(email);
+        if (!userData) {
+          // If no database record exists, create a temporary user object
+          userData = {
+            id: data.user.id,
+            username: data.user.user_metadata?.username || email.split('@')[0],
+            email: email,
+            role: 'viewer' as const,
+            created_at: new Date().toISOString(),
+            last_login: null,
+            status: 'active' as const
+          };
         }
+        
+        setUser(userData);
+        if (userData.id) {
+          try {
+            await DatabaseService.updateUserLastLogin(userData.id);
+          } catch (error) {
+            console.log('Could not update last login, but login successful');
+          }
+        }
+        return true;
       }
       return false;
     } catch (error) {
@@ -100,45 +175,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const existingUser = await DatabaseService.getUserByEmail(email);
       if (existingUser) {
         console.error('User already exists in database');
-        throw new Error('User already exists');
+        return false;
       }
 
-      // Create auth user first
+      // Create auth user with metadata
       console.log('Creating auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          data: {
+            username: username
+          }
+        }
       });
 
       if (authError) {
         console.error('Auth signup error:', authError);
-        throw authError;
+        return false;
       }
 
       if (authData.user) {
-        console.log('Auth user created, now creating database record...');
+        console.log('Auth user created successfully');
         
-        // Create user record in our database (without specifying id)
+        // Try to create user record in our database
         try {
           const userData = await DatabaseService.createUser({
             username,
             email,
             role: 'viewer'
           });
-
           console.log('User registered successfully:', userData);
-          return true;
         } catch (dbError: any) {
-          console.error('Database user creation failed:', dbError);
-          
-          // If database creation fails due to RLS, we should still consider registration successful
-          // since the auth user was created. The user can sign in and we'll handle the database record later
-          if (dbError.code === '42501' || dbError.message?.includes('RLS') || dbError.message?.includes('policy')) {
-            console.log('RLS policy prevented user creation, but auth user exists. Registration successful.');
-            return true;
-          }
-          throw dbError;
+          console.log('Database user creation failed, but auth user created:', dbError);
+          // This is OK - the user can still sign in after email confirmation
         }
+
+        return true;
       }
       return false;
     } catch (error: any) {
