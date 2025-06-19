@@ -27,103 +27,140 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Initialize database on app start
-    initializeDatabase();
+  const createUserFromAuthData = (authUser: any): User => {
+    return {
+      id: authUser.id,
+      username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'User',
+      email: authUser.email!,
+      role: 'viewer' as const,
+      created_at: new Date().toISOString(),
+      last_login: null,
+      status: 'active' as const
+    };
+  };
 
-    // Check if user is already logged in
-    const checkSession = async () => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initializing authentication...');
+        
+        // Initialize database
+        await initializeDatabase();
+
+        // Check current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          if (isMounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
         if (session?.user) {
-          // Try to get user from database, create if doesn't exist
-          let userData = await DatabaseService.getUserByEmail(session.user.email!);
-          if (!userData && session.user.user_metadata?.username) {
-            // Create user record if it doesn't exist but auth user does
-            try {
-              userData = await DatabaseService.createUser({
-                username: session.user.user_metadata.username,
-                email: session.user.email!,
-                role: 'viewer'
-              });
-            } catch (error) {
-              console.log('Could not create user record, but auth user exists');
-              // Create a temporary user object for the session
-              userData = {
-                id: session.user.id,
-                username: session.user.user_metadata?.username || 'User',
-                email: session.user.email!,
-                role: 'viewer' as const,
-                created_at: new Date().toISOString(),
-                last_login: null,
-                status: 'active' as const
-              };
-            }
-          }
+          console.log('Found existing session for:', session.user.email);
           
-          if (userData) {
-            setUser(userData);
+          // Try to get user from database
+          try {
+            let userData = await DatabaseService.getUserByEmail(session.user.email!);
+            
+            if (!userData) {
+              console.log('No database record found, creating temporary user object');
+              userData = createUserFromAuthData(session.user);
+            }
+            
+            if (isMounted) {
+              setUser(userData);
+              console.log('User set successfully:', userData.email);
+            }
+            
+            // Try to update last login (optional)
             if (userData.id) {
-              await DatabaseService.updateUserLastLogin(userData.id);
+              try {
+                await DatabaseService.updateUserLastLogin(userData.id);
+              } catch (error) {
+                console.log('Could not update last login, but user is authenticated');
+              }
+            }
+          } catch (error) {
+            console.error('Error getting user data:', error);
+            // Create fallback user object
+            const fallbackUser = createUserFromAuthData(session.user);
+            if (isMounted) {
+              setUser(fallbackUser);
             }
           }
+        } else {
+          console.log('No existing session found');
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('Error during auth initialization:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          console.log('Auth initialization complete, loading set to false');
+        }
       }
     };
 
-    checkSession();
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event);
       
+      if (!isMounted) return;
+
       if (event === 'SIGNED_IN' && session?.user) {
-        // Try to get user from database, create if doesn't exist
-        let userData = await DatabaseService.getUserByEmail(session.user.email!);
-        if (!userData && session.user.user_metadata?.username) {
-          // Create user record if it doesn't exist but auth user does
-          try {
-            userData = await DatabaseService.createUser({
-              username: session.user.user_metadata.username,
-              email: session.user.email!,
-              role: 'viewer'
-            });
-          } catch (error) {
-            console.log('Could not create user record, but auth user exists');
-            // Create a temporary user object for the session
-            userData = {
-              id: session.user.id,
-              username: session.user.user_metadata?.username || 'User',
-              email: session.user.email!,
-              role: 'viewer' as const,
-              created_at: new Date().toISOString(),
-              last_login: null,
-              status: 'active' as const
-            };
-          }
-        }
+        console.log('User signed in:', session.user.email);
         
-        if (userData) {
-          setUser(userData);
-          if (userData.id) {
-            await DatabaseService.updateUserLastLogin(userData.id);
+        try {
+          let userData = await DatabaseService.getUserByEmail(session.user.email!);
+          
+          if (!userData) {
+            console.log('Creating temporary user object for signed in user');
+            userData = createUserFromAuthData(session.user);
           }
+          
+          setUser(userData);
+          
+          // Try to update last login (optional)
+          if (userData.id) {
+            try {
+              await DatabaseService.updateUserLastLogin(userData.id);
+            } catch (error) {
+              console.log('Could not update last login, but user is authenticated');
+            }
+          }
+        } catch (error) {
+          console.error('Error handling sign in:', error);
+          // Create fallback user
+          const fallbackUser = createUserFromAuthData(session.user);
+          setUser(fallbackUser);
         }
       } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out');
         setUser(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed');
       }
+      
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      console.log('Attempting login for:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -135,31 +172,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        // Try to get user from database, create if doesn't exist
-        let userData = await DatabaseService.getUserByEmail(email);
-        if (!userData) {
-          // If no database record exists, create a temporary user object
-          userData = {
-            id: data.user.id,
-            username: data.user.user_metadata?.username || email.split('@')[0],
-            email: email,
-            role: 'viewer' as const,
-            created_at: new Date().toISOString(),
-            last_login: null,
-            status: 'active' as const
-          };
-        }
-        
-        setUser(userData);
-        if (userData.id) {
-          try {
-            await DatabaseService.updateUserLastLogin(userData.id);
-          } catch (error) {
-            console.log('Could not update last login, but login successful');
-          }
-        }
+        console.log('Login successful for:', email);
         return true;
       }
+      
       return false;
     } catch (error) {
       console.error('Login error:', error);
@@ -169,17 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (username: string, email: string, password: string): Promise<boolean> => {
     try {
-      console.log('Starting registration process...');
+      console.log('Starting registration for:', email);
       
-      // Check if user already exists in our database
-      const existingUser = await DatabaseService.getUserByEmail(email);
-      if (existingUser) {
-        console.error('User already exists in database');
-        return false;
-      }
-
-      // Create auth user with metadata
-      console.log('Creating auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -191,30 +198,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (authError) {
-        console.error('Auth signup error:', authError);
+        console.error('Registration error:', authError);
         return false;
       }
 
       if (authData.user) {
-        console.log('Auth user created successfully');
-        
-        // Try to create user record in our database
-        try {
-          const userData = await DatabaseService.createUser({
-            username,
-            email,
-            role: 'viewer'
-          });
-          console.log('User registered successfully:', userData);
-        } catch (dbError: any) {
-          console.log('Database user creation failed, but auth user created:', dbError);
-          // This is OK - the user can still sign in after email confirmation
-        }
-
+        console.log('Registration successful for:', email);
         return true;
       }
+      
       return false;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Registration error:', error);
       return false;
     }
@@ -222,12 +216,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      console.log('Logging out user');
       await supabase.auth.signOut();
       setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
+
+  console.log('AuthProvider render - loading:', loading, 'user:', user?.email || 'none');
 
   return (
     <AuthContext.Provider value={{
