@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import LoginForm from '@/components/LoginForm';
+import Dashboard from '@/components/Dashboard';
 
 const Index = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -21,20 +22,7 @@ const Index = () => {
     return <LoginForm />;
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white/80 backdrop-blur-sm border-white/50 shadow-xl rounded-lg p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            Welcome to AI Security System
-          </h1>
-          <p className="text-gray-600">
-            You have successfully logged in to the security dashboard.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  return <Dashboard />;
 };
 
 export default Index;
