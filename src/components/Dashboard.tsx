@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Upload, Activity, Settings, FileVideo, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Camera, Upload, Activity, Settings, LogOut, User } from 'lucide-react';
+import { useAuth } from './AuthProvider';
 import CameraFeed from './CameraFeed';
 import CameraGrid from './CameraGrid';
 import AlertsPanel from './AlertsPanel';
@@ -11,21 +13,42 @@ import FileUpload from './FileUpload';
 
 const Dashboard = () => {
   const [detectionResults, setDetectionResults] = useState([]);
+  const { user, logout } = useAuth();
 
   const handleDetection = (detections) => {
-    setDetectionResults(prev => [...detections, ...prev.slice(0, 49)]); // Keep last 50 detections
+    setDetectionResults(prev => [...detections, ...prev.slice(0, 49)]);
+  };
+
+  const handleSignOut = () => {
+    logout();
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Security Detection System</h1>
-          <p className="text-gray-600">Real-time suspicious activity monitoring and analysis</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Security Detection System</h1>
+            <p className="text-gray-600">Real-time suspicious activity monitoring and analysis</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-gray-700">
+              <User className="w-4 h-4" />
+              <span className="text-sm">{user?.email}</span>
+            </div>
+            <Button 
+              onClick={handleSignOut}
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="live-detection" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="live-detection" className="flex items-center space-x-2">
               <Camera className="w-4 h-4" />
               <span>Live Detection</span>
@@ -33,10 +56,6 @@ const Dashboard = () => {
             <TabsTrigger value="file-upload" className="flex items-center space-x-2">
               <Upload className="w-4 h-4" />
               <span>File Upload</span>
-            </TabsTrigger>
-            <TabsTrigger value="cameras" className="flex items-center space-x-2">
-              <Camera className="w-4 h-4" />
-              <span>Cameras</span>
             </TabsTrigger>
             <TabsTrigger value="alerts" className="flex items-center space-x-2">
               <Activity className="w-4 h-4" />
@@ -80,10 +99,6 @@ const Dashboard = () => {
 
           <TabsContent value="file-upload" className="space-y-6">
             <FileUpload />
-          </TabsContent>
-
-          <TabsContent value="cameras" className="space-y-6">
-            <CameraGrid />
           </TabsContent>
 
           <TabsContent value="alerts" className="space-y-6">
